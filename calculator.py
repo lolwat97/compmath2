@@ -1,7 +1,7 @@
 class Calculator:
     def __init__(self):
         self.input = {'x': [0], 'f': [0]}
-        self.results = {'f': [], 'b': []}
+        self.results = {'f': [], 'b': [], 'b_sort': [], 'spline_coeff': []}
         pass
 
     def set_input(self, x, f):
@@ -10,9 +10,19 @@ class Calculator:
 
     def calculate(self):
         self.iterate_coeff(0, len(self.input['x']) - 1)
+
         for elem in self.results['f']:
             if elem[0][0] == 0:
                 self.results['b'].append((elem[0][1], elem[1]))
+
+        sorted_coeff = sorted(self.results['b'])
+        der_coeff = [x[1] * x[0] for x in sorted_coeff[1:]]
+
+        self.results['b_sort'] = [x[1] for x in sorted_coeff]
+        self.results['b_sort_der'] = der_coeff
+
+        for i in range(0, len(self.input['x']) - 1):
+            self.results['spline_coeff'].append(self.calculate_spline_coeff(i))
 
     def print_results(self):
         for key, value in self.results.items():
@@ -26,3 +36,64 @@ class Calculator:
             res = diff / (self.input['x'][n_end] - self.input['x'][n_start])
         self.results['f'].append(((n_start, n_end), res))
         return res
+
+    def p(self, x):
+        coeffs = self.results['b_sort']
+        res = 0
+
+        for i in range(len(coeffs)):
+            mult = 1
+            for k in range(i):
+                mult = mult * (x - self.input['x'][k])
+            res += coeffs[i] * mult
+
+        return res
+
+    def pder(self, x):
+        coeffs = self.results['b_sort_der']
+        res = 0
+
+        for i in range(len(coeffs)):
+            res += coeffs[i] * (x ** i)
+
+        return res
+
+    def calculate_spline_coeff(self, n):
+        x = self.input['x'][n]
+        x1 = self.input['x'][n+1]
+        xdiff = x1 - x
+        xsum = x1 + x
+        xsum12 = x1 + 2 * x
+        xsum21 = 2*x1 + x
+        xdiff31 = 3*x1 - x
+        xdiff13 = x1 - 3*x
+
+        f = self.input['f'][n]
+        f1 = self.input['f'][n+1]
+        fdiff = f1 - f
+
+        pderx = self.pder(x)
+        pderx1 = self.pder(x1)
+
+        a3 = (pderx1 * xdiff - 2 * fdiff + pderx * xdiff)/(xdiff**3)
+        a2 = (-1 * pderx1 * xdiff * xsum12 + 3 * fdiff * xsum - pderx * xdiff * xsum12)/(xdiff**3)
+        a1 = (pderx1 * x * xsum21 * xdiff - 6 * fdiff * x * x1 + pderx * x1 * xsum12 * xdiff)/(xdiff**3)
+        a0 = (-1 * pderx1 * x**2 * x1 * xdiff + f1 * x**2 * xdiff31 + f * x1**2 * xdiff13 - pderx * x * x1**2 * xdiff)/(xdiff**3)
+
+        return [a3, a2, a1, a0]
+
+    def calculate_spline_at_x(self, x):
+        n = self.locate_x(x)
+        print('X is in spline {}'.format(n+1))
+        coeffs = self.results['spline_coeff'][n]
+        res = coeffs[0] * x**3 + coeffs[1] * x**2 + coeffs[2] * x + coeffs[3]
+        return res
+
+    def locate_x(self, x):
+        for i in range(len(self.input['x']) - 1):
+            if self.input['x'][i] <= x < self.input['x'][i + 1]:
+                return i
+        if x == self.input['x'][-1]:
+            return len(self.input['x']) - 2
+        else:
+            raise Exception('X not found!')
